@@ -6,12 +6,11 @@
 #include "tensor.hpp"
 #include "activations.hpp"
 #include "cuda_tensor_wrapper.cuh"
+#include "cuda_utils.cuh"
 
 
 namespace nncpp
 {
-
-const int BLOCK_SIZE = 512;
 
 
 __global__ void kerner_relu(CUDATensorWrapper input, CUDATensorWrapper output)
@@ -69,19 +68,23 @@ __global__ void kerner_sigmoid_backward(CUDATensorWrapper grad, CUDATensorWrappe
 }
 
 
-int setup_grid_size(size_t numel)
-{
-    int grid_size = (numel % BLOCK_SIZE == 0) ? numel / BLOCK_SIZE + 1 : numel / BLOCK_SIZE;
-    grid_size = (grid_size == 0) ? 1 : grid_size;
-    return grid_size;
+__global__ void kerner_softmax(CUDATensorWrapper input, size_t dim, CUDATensorWrapper output)
+{   
+    // softmax(input, dim) = exp(input - max(input)) / sum(exp(input - max(input)), dim)
+    // a) compute max(input)    
+    // b) compute sum(exp(input - max(input, dim)), dim)
+    // c) compute softmax(input, dim)
+    // CUDATensorWrapper _max_output_tw(output);
+    // _kernel_reduce_op(input, _max_output_tw, op_max, _atomicMax);
+
 }
 
 
 void _elementwise_activation_inplace(Tensor & input, void kernel_func(CUDATensorWrapper, CUDATensorWrapper))
 {
     assert(input.device == Device::CUDA);    
-    int grid_size = setup_grid_size(input.numel());
-    auto tw = CUDATensorWrapper(input);
+    int grid_size = setup_grid_size(input.numel(), BLOCK_SIZE);
+    CUDATensorWrapper tw(input);
     kernel_func<<<grid_size, BLOCK_SIZE>>>(tw, tw);
     CHECK(cudaGetLastError());
 }
@@ -91,9 +94,9 @@ Tensor _elementwise_activation(const Tensor & input, void kernel_func(CUDATensor
 {
     assert(input.device == Device::CUDA);
     Tensor output = Tensor::zeros_like(input);
-    int grid_size = setup_grid_size(input.numel());
-    auto itw = CUDATensorWrapper(input);
-    auto otw = CUDATensorWrapper(output);
+    int grid_size = setup_grid_size(input.numel(), BLOCK_SIZE);
+    CUDATensorWrapper itw(input);
+    CUDATensorWrapper otw(output);
     kernel_func<<<grid_size, BLOCK_SIZE>>>(itw, otw);
     CHECK(cudaGetLastError());
     return std::move(output);
@@ -109,10 +112,10 @@ Tensor _elementwise_activation_backward(
     assert(input.device == Device::CUDA);
 
     Tensor output = Tensor::zeros_like(grad);
-    int grid_size = setup_grid_size(input.numel());
-    auto itw = CUDATensorWrapper(input);
-    auto otw = CUDATensorWrapper(output);
-    auto gtw = CUDATensorWrapper(grad);
+    int grid_size = setup_grid_size(input.numel(), BLOCK_SIZE);
+    CUDATensorWrapper itw(input);
+    CUDATensorWrapper otw(output);
+    CUDATensorWrapper gtw(grad);
     kernel_func<<<grid_size, BLOCK_SIZE>>>(gtw, itw, otw);
     CHECK(cudaGetLastError());
     return std::move(output);
@@ -140,6 +143,23 @@ void sigmoid_(Tensor & input)
 Tensor sigmoid(const Tensor & input)
 {
     return _elementwise_activation(input, kerner_sigmoid);
+}
+
+void softmax_(Tensor & input, size_t dim)
+{
+    assert(dim < 4);
+    assert(input.device == Device::CUDA);    
+    int grid_size = setup_grid_size(input.numel(), BLOCK_SIZE);
+    CUDATensorWrapper tw(input);
+    // kernel_func<<<grid_size, BLOCK_SIZE>>>(tw, tw);
+    CHECK(cudaGetLastError());
+}
+
+
+Tensor softmax(const Tensor & input, size_t dim)
+{
+    assert(dim < 4);
+    return input;    
 }
 
 

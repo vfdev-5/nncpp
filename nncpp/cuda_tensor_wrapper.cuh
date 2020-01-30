@@ -1,10 +1,17 @@
 #pragma once
 
+// STD
+#include <memory>
+
+// NNCPP
 #include "tensor.hpp"
 
 
 namespace nncpp
 {
+
+
+const int BLOCK_SIZE = 512;
 
 
 #define CHECK(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -28,9 +35,12 @@ public:
     {}
 
     CUDATensorWrapper(const Tensor & t) :        
-        _t_data((float *) t.const_data()),
+        _t_data( (float *) t.const_data() ),
         _t_numel(t.numel())
     {}
+
+    // inline static CUDATensorWrapper zeros(size_t numel)
+    // { return CUDATensorWrapper}
 
     __host__ __device__ float & at(size_t linear)
     { return _t_data[linear]; }

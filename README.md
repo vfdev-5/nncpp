@@ -1,8 +1,8 @@
-# NNCpp - Neural Networks in C++ with CUDA ops
+# [WIP] NNCpp - Neural Networks in C++ with CUDA ops
 
 - NNCpp library
-  - Tensor (CPU/CUDA)
-  - Layers: activations, convolution
+  - Tensor (CPU/CUDA) on [Unified Memory](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#um-unified-memory-programming-hd)
+  - Layers: activations, convolution on CUDA only
   - Model: list of layers
   - Criterion: CrossEntropy, MSE
 - Example applications
@@ -30,14 +30,20 @@ cmake .. && make
 - Tensor : "tensor.hpp"
 
 ```c++
+#include <iostream>
 #include "tensor.hpp"
 
 auto t_cpu = nncpp::Tensor::zeros(n, c, h, w, Device::CPU);
 auto t_cuda = nncpp::Tensor::ones(n, c, h, w, Device::CUDA);
 
-t_cpu.get(0, 0, 0, 0);
-t_cuda.set(1, 1, 1, 1, 2.3);
+std::cout << t_cpu << std::endl;
+std::cout << t_cuda << std::endl;
+
+t_cpu.at(0, 0, 0, 0) = 1.0f;
+t_cuda.at(0, 0, 0, 0) = 2.0f;
 ```
+
+- NN operations: "activations.hpp", 
 
 ## Run applications
 

@@ -19,6 +19,10 @@ void sigmoid_(Tensor & t);
 
 Tensor sigmoid(const Tensor & t);
 
+void softmax_(Tensor & t, size_t dim);
+
+Tensor softmax(const Tensor & t, size_t dim);
+
 
 class Identity
 {

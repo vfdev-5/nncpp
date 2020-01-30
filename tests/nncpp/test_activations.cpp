@@ -249,3 +249,26 @@ TEST(TestActivations, testSigmoidBackward)
         }
     }
 }
+
+
+TEST(TestActivations, testSoftmax)
+{    
+    Tensor input = setup_test_tensor2();    
+    Tensor output = sigmoid(input);
+
+    for (size_t i=0; i < output.shape[0]; i++)
+    {
+        for (size_t j=0; j < output.shape[1]; j++)
+        {
+            for (size_t k=0; k < output.shape[2]; k++)
+            {
+                for (size_t l=0; l < output.shape[3]; l++)
+                {            
+                    float v = input.at(i, j, k, l);
+                    v = expf(v) / (1.0f + expf(v));
+                    ASSERT_FLOAT_EQ(output.at(i, j, k, l), v);
+                }
+            }
+        }
+    }
+}

@@ -21,8 +21,9 @@ void check_device(Device device);
 Tensor Tensor::zeros(size_t n, size_t c, size_t h, size_t w, Device device) 
 {
     check_device(device);
-    Tensor output;
-    create_tensor(output, n, c, h, w, device, _unifiedmem_zeros);
+    size_t shape[]{n, c, h, w};
+    Tensor output(shape, device);
+    create_tensor(output, _unifiedmem_zeros);
     return output;
 }
 
@@ -30,8 +31,9 @@ Tensor Tensor::zeros(size_t n, size_t c, size_t h, size_t w, Device device)
 Tensor Tensor::ones(size_t n, size_t c, size_t h, size_t w, Device device) 
 {
     check_device(device);
-    Tensor output;
-    create_tensor(output, n, c, h, w, device, _unifiedmem_ones);    
+    size_t shape[]{n, c, h, w};
+    Tensor output(shape, device);
+    create_tensor(output, _unifiedmem_ones);    
     return output;
 }
 
@@ -39,8 +41,8 @@ Tensor Tensor::ones(size_t n, size_t c, size_t h, size_t w, Device device)
 Tensor Tensor::zeros_like(const Tensor & t) 
 {
     check_device(t.device);
-    Tensor output;
-    create_tensor(output, t.shape[0], t.shape[1], t.shape[2], t.shape[3], t.device, _unifiedmem_zeros);
+    Tensor output(t.shape, t.device);
+    create_tensor(output, _unifiedmem_zeros);
     return output;
 }
 
@@ -48,8 +50,8 @@ Tensor Tensor::zeros_like(const Tensor & t)
 Tensor Tensor::ones_like(const Tensor & t)
 {
     check_device(t.device);
-    Tensor output;
-    create_tensor(output, t.shape[0], t.shape[1], t.shape[2], t.shape[3], t.device, _unifiedmem_ones);    
+    Tensor output(t.shape, t.device);
+    create_tensor(output, _unifiedmem_ones);    
     return output;
 }
 
@@ -82,18 +84,16 @@ float & Tensor::at(size_t linear)
 
 void assert_indices(const Tensor & t, size_t i, size_t j, size_t k, size_t l)
 {
-    assert(i >= 0 && i < t.shape[0]);
-    assert(j >= 0 && j < t.shape[1]);
-    assert(k >= 0 && k < t.shape[2]);
-    assert(l >= 0 && l < t.shape[3]);
+    assert(i < t.shape[0]);
+    assert(j < t.shape[1]);
+    assert(k < t.shape[2]);
+    assert(l < t.shape[3]);
 }
 
 
 size_t linear_index(const Tensor & t, size_t i, size_t j, size_t k, size_t l)
 {
-    return i * t.shape[1] * t.shape[2] * t.shape[3] + 
-           j * t.shape[2] * t.shape[3] + 
-           k * t.shape[3] + l;
+    return i * t.strides[0] + j * t.strides[1] + k * t.strides[2] + l * t.strides[3];
 }
 
 
@@ -107,19 +107,13 @@ void check_device(Device device)
 }
 
 
-void Tensor::create_tensor(Tensor & t, size_t n, size_t c, size_t h, size_t w, Device device, void func(float ** data, size_t n, size_t c, size_t h, size_t w))
+void Tensor::create_tensor(Tensor & t, void func(float ** data, size_t n, size_t c, size_t h, size_t w))
 {
     float * data;
-    func(&data, n, c, h, w);
+    func(&data, t.shape[0], t.shape[1], t.shape[2], t.shape[3]);
     t._data = std::shared_ptr<float>(data, [&](float *p){
         _unifiedmem_free(p);
     });
-
-    t.device = device;
-    t.shape[0] = n;
-    t.shape[1] = c;
-    t.shape[2] = h;
-    t.shape[3] = w;    
 }
 
 

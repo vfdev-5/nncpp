@@ -1,10 +1,9 @@
-project(nncpp)
-MESSAGE(STATUS "Project: ${PROJECT_NAME}")
-
 cmake_minimum_required(VERSION 3.10)
+# https://devblogs.nvidia.com/building-cuda-applications-cmake/
+project(nncpp LANGUAGES CXX CUDA)
+
 
 #--- Create NNCpp library ---
-find_package(CUDA REQUIRED)
 MESSAGE(STATUS "Cuda found ${CUDA_FOUND}")
 
 set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} --std=c++11 -O2")
@@ -28,9 +27,12 @@ file(GLOB_RECURSE NNCPP_CPP_SOURCES nncpp/*.cpp)
 file(GLOB_RECURSE NNCPP_CU_HEADERS nncpp/*.cuh)
 file(GLOB_RECURSE NNCPP_CU_SOURCES nncpp/*.cu)
 
+  
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/nncpp)
-CUDA_ADD_LIBRARY(${PROJECT_NAME} SHARED ${NNCPP_HEADERS} ${NNCPP_CU_HEADERS} ${NNCPP_CU_SOURCES} ${NNCPP_CPP_SOURCES})
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${CUDA_curand_LIBRARY})
+add_library(${PROJECT_NAME} SHARED ${NNCPP_HEADERS} ${NNCPP_CU_HEADERS} ${NNCPP_CU_SOURCES} ${NNCPP_CPP_SOURCES})
+set_target_properties(${PROJECT_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+target_link_libraries(${PROJECT_NAME} ${CUDA_curand_LIBRARY})
+
 
 
 #--- Setup tests ---
@@ -41,5 +43,6 @@ find_package(Threads REQUIRED)
 file(GLOB_RECURSE TEST_SOURCES tests/*.cpp)
 
 add_executable(test-${PROJECT_NAME} ${TEST_SOURCES})
+set_property(TARGET test-${PROJECT_NAME} PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 include_directories(${GTEST_INCLUDE_DIRS})
 target_link_libraries(test-${PROJECT_NAME} ${PROJECT_NAME} ${GTEST_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})

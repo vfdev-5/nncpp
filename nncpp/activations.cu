@@ -2,11 +2,18 @@
 #include <cassert>
 #include <iostream>
 
+// CUDA
+#include <cooperative_groups.h>
+
+
 // NNCpp
 #include "tensor.hpp"
 #include "activations.hpp"
 #include "cuda_tensor_wrapper.cuh"
 #include "cuda_utils.cuh"
+
+
+namespace cg = cooperative_groups;
 
 
 namespace nncpp
@@ -68,14 +75,21 @@ __global__ void kerner_sigmoid_backward(CUDATensorWrapper grad, CUDATensorWrappe
 }
 
 
-__global__ void kerner_softmax(CUDATensorWrapper input, size_t dim, CUDATensorWrapper output)
+__global__ void kerner_softmax(CUDATensorWrapper input, size_t dim, CUDATensorWrapper output, CUDATensorWrapper buffer)
 {   
+    // Handle to thread block group
+    cg::thread_block cta = cg::this_thread_block();
+
     // softmax(input, dim) = exp(input - max(input)) / sum(exp(input - max(input)), dim)
     // a) compute max(input)    
-    // b) compute sum(exp(input - max(input, dim)), dim)
-    // c) compute softmax(input, dim)
-    // CUDATensorWrapper _max_output_tw(output);
-    // _kernel_reduce_op(input, _max_output_tw, op_max, _atomicMax);
+    _kernel_reduce_op(input, buffer, op_max, _atomicMax);
+
+    cg::sync(cta); 
+    // b) compute sum(exp(input - max(input)), dim)
+    float max_input = buffer.at(0);
+    // _kernel_reduce_op_on_dim(input, dim, )
+
+    // c) compute exp(input - max(input)) / sum(exp(input - max(input)), dim)
 
 }
 
@@ -145,13 +159,17 @@ Tensor sigmoid(const Tensor & input)
     return _elementwise_activation(input, kerner_sigmoid);
 }
 
+
 void softmax_(Tensor & input, size_t dim)
 {
     assert(dim < 4);
     assert(input.device == Device::CUDA);    
     int grid_size = setup_grid_size(input.numel(), BLOCK_SIZE);
     CUDATensorWrapper tw(input);
-    // kernel_func<<<grid_size, BLOCK_SIZE>>>(tw, tw);
+
+    auto buffer = Tensor::zeros(1, 1, 1, 1, Device::CUDA);
+    CUDATensorWrapper buffertw(buffer);
+    kerner_softmax<<<grid_size, BLOCK_SIZE, BLOCK_SIZE * sizeof(float)>>>(tw, dim, tw, buffertw);
     CHECK(cudaGetLastError());
 }
 

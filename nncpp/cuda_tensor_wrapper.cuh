@@ -31,16 +31,20 @@ class CUDATensorWrapper
 public:
     CUDATensorWrapper(Tensor & t) : 
         _t_data(t.data()),
-        _t_numel(t.numel())
+        _t_numel(t.numel()),
+        strides{t.strides[0], t.strides[1], t.strides[2], t.strides[3]},
+        shape{t.shape[0], t.shape[1], t.shape[2], t.shape[3]}
     {}
 
     CUDATensorWrapper(const Tensor & t) :        
         _t_data( (float *) t.const_data() ),
-        _t_numel(t.numel())
+        _t_numel(t.numel()),
+        strides{t.strides[0], t.strides[1], t.strides[2], t.strides[3]},
+        shape{t.shape[0], t.shape[1], t.shape[2], t.shape[3]}
     {}
 
-    // inline static CUDATensorWrapper zeros(size_t numel)
-    // { return CUDATensorWrapper}
+    const size_t strides[4];
+    const size_t shape[4];
 
     __host__ __device__ float & at(size_t linear)
     { return _t_data[linear]; }
@@ -56,10 +60,10 @@ public:
 
     __host__ __device__ const float * const_data() const
     { return _t_data; }
-
+    
 protected:
     float * _t_data;
-    size_t _t_numel;
+    size_t _t_numel;    
 
 };
 

@@ -43,6 +43,13 @@ public:
         shape{t.shape[0], t.shape[1], t.shape[2], t.shape[3]}
     {}
 
+    CUDATensorWrapper(float * data, size_t numel, size_t inputStrides[4], size_t inputShape[4]) :
+        _t_data( data ),
+        _t_numel(numel),
+        strides{inputStrides[0], inputStrides[1], inputStrides[2], inputStrides[3]},
+        shape{inputShape[0], inputShape[1], inputShape[2], inputShape[3]}
+    {}
+
     const size_t strides[4];
     const size_t shape[4];
 
@@ -61,11 +68,35 @@ public:
     __host__ __device__ const float * const_data() const
     { return _t_data; }
     
+    inline __host__ __device__ size_t convert_to_linear(size_t indices[4]);
+    inline __host__ __device__ void convert_from_linear(size_t linear, size_t indices[4]);    
+
 protected:
+    
     float * _t_data;
     size_t _t_numel;    
 
 };
+
+
+inline __host__ __device__ size_t CUDATensorWrapper::convert_to_linear(size_t indices[4])
+{
+    return indices[0] * strides[0] + indices[1] * strides[1] + indices[2] * strides[2] + indices[3] * strides[3];
+}
+
+
+inline __host__ __device__ void CUDATensorWrapper::convert_from_linear(size_t linear, size_t indices[4])
+{     
+    int t = linear;
+    indices[0] = linear / strides[0];
+    t %= strides[0];
+    indices[1] = t / strides[1];
+    t %= strides[1];
+    indices[2] = t / strides[2];
+    t %= strides[2];
+    indices[3] = t / strides[3];
+}
+
 
 }
 

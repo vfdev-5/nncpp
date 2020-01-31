@@ -79,18 +79,54 @@ __global__ void kerner_softmax(CUDATensorWrapper input, size_t dim, CUDATensorWr
 {   
     // Handle to thread block group
     cg::thread_block cta = cg::this_thread_block();
-
     // softmax(input, dim) = exp(input - max(input)) / sum(exp(input - max(input)), dim)
-    // a) compute max(input)    
-    _kernel_reduce_op(input, buffer, op_max, _atomicMax);
-
+    // a) compute max(input)
+    _kernel_reduce_op(input, buffer, op_max, nullptr, _atomicMax);
     cg::sync(cta); 
-    // b) compute sum(exp(input - max(input)), dim)
+
+    // b.1) compute output = exp(input - max(input))    
     float max_input = buffer.at(0);
-    // _kernel_reduce_op_on_dim(input, dim, )
+    uint gridSize = blockDim.x * gridDim.x;
+    {
+        size_t outputNumel = output.numel();
+        uint i = blockIdx.x * blockDim.x + threadIdx.x;
+        while (i < outputNumel)
+        {
+            output.at(i) = expf(input.at(i) - max_input);
+            i += gridSize;
+        }    
+    }
+    cg::sync(cta); 
 
-    // c) compute exp(input - max(input)) / sum(exp(input - max(input)), dim)
+    // b.2) compute buffer = sum(output, dim)
+    // initialize buffer to zero:
+    buffer.at(0) = 0.0f;
+    _kernel_reduce_op_on_dim(output, dim, buffer, op_sum);
+    cg::sync(cta); 
+    
+    // c) compute output / buffer
+    // output.shape=(N,C,H,W) and buffer.shape=(X,Y,Z)
+    {
+        size_t bufferNumel = buffer.numel();
+        uint i = blockIdx.x * blockDim.x + threadIdx.x;
+        size_t size = output.shape[dim];
+        float denom;
+        size_t bufIndices[4], outIndex;
 
+        while (i < bufferNumel)
+        {
+            denom = buffer.at(i);
+            buffer.convert_from_linear(i, bufIndices);
+            for (size_t j = 0; j < size; j++)
+            {   
+                bufIndices[dim] = j;
+                outIndex = output.convert_to_linear(bufIndices);            
+                output.at(outIndex) = output.at(outIndex) / denom;
+            }
+            i += gridSize;
+        }    
+    }
+    cg::sync(cta);
 }
 
 
@@ -167,7 +203,9 @@ void softmax_(Tensor & input, size_t dim)
     int grid_size = setup_grid_size(input.numel(), BLOCK_SIZE);
     CUDATensorWrapper tw(input);
 
-    auto buffer = Tensor::zeros(1, 1, 1, 1, Device::CUDA);
+    size_t shape[]{input.shape[0], input.shape[1], input.shape[2], input.shape[3]};
+    shape[dim] = 1;
+    auto buffer = Tensor::zeros(shape[0], shape[1], shape[2], shape[3], Device::CUDA);
     CUDATensorWrapper buffertw(buffer);
     kerner_softmax<<<grid_size, BLOCK_SIZE, BLOCK_SIZE * sizeof(float)>>>(tw, dim, tw, buffertw);
     CHECK(cudaGetLastError());
@@ -177,7 +215,20 @@ void softmax_(Tensor & input, size_t dim)
 Tensor softmax(const Tensor & input, size_t dim)
 {
     assert(dim < 4);
-    return input;    
+    assert(input.device == Device::CUDA);
+    Tensor output = Tensor::zeros_like(input);
+    int grid_size = setup_grid_size(input.numel(), BLOCK_SIZE);
+    CUDATensorWrapper itw(input);
+    CUDATensorWrapper otw(output);
+
+    size_t shape[]{input.shape[0], input.shape[1], input.shape[2], input.shape[3]};
+    shape[dim] = 1;
+    auto buffer = Tensor::zeros(shape[0], shape[1], shape[2], shape[3], Device::CUDA);
+    CUDATensorWrapper buffertw(buffer);
+    kerner_softmax<<<grid_size, BLOCK_SIZE, BLOCK_SIZE * sizeof(float)>>>(itw, dim, otw, buffertw);
+    CHECK(cudaGetLastError());
+
+    return std::move(output);
 }
 
 

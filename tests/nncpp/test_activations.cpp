@@ -132,7 +132,7 @@ TEST(TestActivations, testReLUBackward)
 
 Tensor setup_test_tensor2()
 {
-    int n(4), c(3), h(2), w(2);
+    int n(4), c(3), h(10), w(10);
     Tensor t = Tensor::zeros(n, c, h, w, Device::CUDA);
 
     float v = - n * c * h * w * 0.5;
@@ -251,23 +251,58 @@ TEST(TestActivations, testSigmoidBackward)
 }
 
 
-TEST(TestActivations, testSoftmax)
+TEST(TestActivations, testSoftmaxInplace)
 {    
     Tensor input = setup_test_tensor2();    
     Tensor output = setup_test_tensor2();    
     softmax_(output, 1);
-
+    
+    float denom;
     for (size_t i=0; i < output.shape[0]; i++)
     {
-        for (size_t j=0; j < output.shape[1]; j++)
+        for (size_t k=0; k < output.shape[2]; k++)
         {
-            for (size_t k=0; k < output.shape[2]; k++)
-            {
-                for (size_t l=0; l < output.shape[3]; l++)
-                {            
-                    // float v = input.at(i, j, k, l);
-                    // v = expf(v) / (1.0f + expf(v));
-                    // ASSERT_FLOAT_EQ(output.at(i, j, k, l), v);
+            for (size_t l=0; l < output.shape[3]; l++)
+            {    
+                denom = 0.0f;        
+                for (size_t j=0; j < output.shape[1]; j++)
+                {
+                    float v = input.at(i, j, k, l);
+                    denom += expf(v);
+                }
+                for (size_t j=0; j < output.shape[1]; j++)
+                {
+                    float v = input.at(i, j, k, l);
+                    ASSERT_NEAR(output.at(i, j, k, l), expf(v) / denom, 1e-4);
+                }
+            }
+        }
+    }
+}
+
+
+TEST(TestActivations, testSoftmax)
+{    
+    Tensor input = setup_test_tensor2();    
+    Tensor output = softmax(input, 1);
+    
+    float denom;
+    for (size_t i=0; i < output.shape[0]; i++)
+    {
+        for (size_t k=0; k < output.shape[2]; k++)
+        {
+            for (size_t l=0; l < output.shape[3]; l++)
+            {    
+                denom = 0.0f;        
+                for (size_t j=0; j < output.shape[1]; j++)
+                {
+                    float v = input.at(i, j, k, l);
+                    denom += expf(v);
+                }
+                for (size_t j=0; j < output.shape[1]; j++)
+                {
+                    float v = input.at(i, j, k, l);
+                    ASSERT_NEAR(output.at(i, j, k, l), expf(v) / denom, 1e-4);
                 }
             }
         }

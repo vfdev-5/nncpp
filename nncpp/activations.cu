@@ -5,8 +5,7 @@
 // CUDA
 #include <cooperative_groups.h>
 
-
-// NNCpp
+// NNCPP
 #include "tensor.hpp"
 #include "activations.hpp"
 #include "cuda_tensor_wrapper.cuh"

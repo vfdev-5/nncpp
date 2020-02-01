@@ -1,11 +1,8 @@
 #pragma once
 
-// STD
-#include <vector>
-
 // NNCPP
 #include "tensor.hpp"
-
+#include "module.hpp"
 
 namespace nncpp
 {
@@ -24,28 +21,7 @@ void softmax_(Tensor & t, size_t dim);
 Tensor softmax(const Tensor & t, size_t dim);
 
 
-class Identity
-{
-
-public:
-    virtual Tensor forward(const Tensor & t) 
-    { return t; }
-    
-    virtual Tensor backward(const Tensor & grad) 
-    { return grad; }
-
-    virtual Tensor operator()(const Tensor & t) 
-    { return forward(t); }
-
-protected:
-
-    std::vector<Tensor> _context;
-    
-
-};
-
-
-class ReLU: public Identity
+class ReLU: public Module
 {
 
 public:
@@ -55,7 +31,7 @@ public:
 };
 
 
-class Sigmoid: public Identity
+class Sigmoid: public Module
 {
 
 public:

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <tuple>
 #include <memory>
+#include <random>
 
 
 namespace nncpp
@@ -23,6 +24,7 @@ public:
 
     static Tensor zeros(size_t n, size_t c, size_t h, size_t w, Device device=Device::CPU);
     static Tensor ones(size_t n, size_t c, size_t h, size_t w, Device device=Device::CPU);    
+    static Tensor randn(size_t n, size_t c, size_t h, size_t w, Device device=Device::CPU, float mean=0.0, float stddev=1.0);
 
     static Tensor zeros_like(const Tensor & t);
     static Tensor ones_like(const Tensor & t);
@@ -59,8 +61,11 @@ protected:
 
     std::shared_ptr<float> _data;
 
-    static void create_tensor(Tensor & t, void func(float ** data, size_t n, size_t c, size_t h, size_t w));
+    static void create_tensor(Tensor & t, void func(float ** data, size_t n, size_t c, size_t h, size_t w, void * args), void * args=nullptr);
 };
+
+
+static std::mt19937 random_generator;
 
 }
 

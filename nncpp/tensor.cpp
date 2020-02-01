@@ -10,8 +10,9 @@ namespace nncpp
 {
 
 void _unifiedmem_free(float * data);
-void _unifiedmem_zeros(float ** data, size_t n, size_t c, size_t h, size_t w);
-void _unifiedmem_ones(float ** data, size_t n, size_t c, size_t h, size_t w);
+void _unifiedmem_zeros(float ** data, size_t n, size_t c, size_t h, size_t w, void * args = nullptr);
+void _unifiedmem_ones(float ** data, size_t n, size_t c, size_t h, size_t w, void * args = nullptr);
+void _unifiedmem_randn(float ** data, size_t n, size_t c, size_t h, size_t w, void * args = nullptr);
 void _cuda_sync();
 
 
@@ -24,7 +25,7 @@ Tensor Tensor::zeros(size_t n, size_t c, size_t h, size_t w, Device device)
     size_t shape[]{n, c, h, w};
     Tensor output(shape, device);
     create_tensor(output, _unifiedmem_zeros);
-    return output;
+    return std::move(output);
 }
 
 
@@ -34,7 +35,18 @@ Tensor Tensor::ones(size_t n, size_t c, size_t h, size_t w, Device device)
     size_t shape[]{n, c, h, w};
     Tensor output(shape, device);
     create_tensor(output, _unifiedmem_ones);    
-    return output;
+    return std::move(output);
+}
+
+
+Tensor Tensor::randn(size_t n, size_t c, size_t h, size_t w, Device device, float mean, float stddev)
+{
+    check_device(device);
+    size_t shape[]{n, c, h, w};
+    Tensor output(shape, device);
+    float ms[]{mean, stddev};
+    create_tensor(output, _unifiedmem_randn, ms);
+    return std::move(output);
 }
 
 
@@ -43,7 +55,7 @@ Tensor Tensor::zeros_like(const Tensor & t)
     check_device(t.device);
     Tensor output(t.shape, t.device);
     create_tensor(output, _unifiedmem_zeros);
-    return output;
+    return std::move(output);
 }
 
 
@@ -51,8 +63,8 @@ Tensor Tensor::ones_like(const Tensor & t)
 {
     check_device(t.device);
     Tensor output(t.shape, t.device);
-    create_tensor(output, _unifiedmem_ones);    
-    return output;
+    create_tensor(output, _unifiedmem_ones);
+    return std::move(output);
 }
 
 
@@ -107,10 +119,10 @@ void check_device(Device device)
 }
 
 
-void Tensor::create_tensor(Tensor & t, void func(float ** data, size_t n, size_t c, size_t h, size_t w))
+void Tensor::create_tensor(Tensor & t, void func(float ** data, size_t n, size_t c, size_t h, size_t w, void * args), void * args)
 {
     float * data;
-    func(&data, t.shape[0], t.shape[1], t.shape[2], t.shape[3]);
+    func(&data, t.shape[0], t.shape[1], t.shape[2], t.shape[3], args);
     t._data = std::shared_ptr<float>(data, [&](float *p){
         _unifiedmem_free(p);
     });

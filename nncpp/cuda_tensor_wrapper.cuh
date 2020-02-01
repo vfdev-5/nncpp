@@ -11,7 +11,8 @@ namespace nncpp
 {
 
 
-const int BLOCK_SIZE = 512;
+const size_t BLOCK_SIZE = 512;
+const size_t MATMUL_BLOCK_SIZE = 32;
 
 
 #define CHECK(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -19,7 +20,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 {
     if (code != cudaSuccess)
     {
-        fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+        fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
         if (abort) exit(code);
     }
 }       

@@ -243,7 +243,7 @@ TEST(TestActivations, testSigmoidBackward)
                 {            
                     double v = input.at(i, j, k, l);
                     v = -1.0 * exp(v) * expm1(v) * grads.at(i, j, k, l);
-                    ASSERT_NEAR(output.at(i, j, k, l), v, 1e-5);
+                    ASSERT_NEAR(output.at(i, j, k, l), v, 1e-4);
                 }
             }
         }

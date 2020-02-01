@@ -18,6 +18,109 @@ namespace cg = cooperative_groups;
 namespace nncpp
 {
 
+__global__ void kerner_relu(CUDATensorWrapper input, CUDATensorWrapper output);
+__global__ void kerner_relu_backward(CUDATensorWrapper grad, CUDATensorWrapper input, CUDATensorWrapper output);
+__global__ void kerner_sigmoid(CUDATensorWrapper input, CUDATensorWrapper output);
+__global__ void kerner_sigmoid_backward(CUDATensorWrapper grad, CUDATensorWrapper input, CUDATensorWrapper output);
+__global__ void kerner_softmax(CUDATensorWrapper input, size_t dim, CUDATensorWrapper output, CUDATensorWrapper buffer);
+
+void _elementwise_activation_inplace(Tensor & input, void kernel_func(CUDATensorWrapper, CUDATensorWrapper));
+Tensor _elementwise_activation(const Tensor & input, void kernel_func(CUDATensorWrapper, CUDATensorWrapper));
+Tensor _elementwise_activation_backward(const Tensor & grad, const Tensor & input,
+    void kernel_func(CUDATensorWrapper, CUDATensorWrapper, CUDATensorWrapper));
+
+
+void relu_(Tensor & input)
+{
+    _elementwise_activation_inplace(input, kerner_relu);
+}
+
+
+Tensor relu(const Tensor & input)
+{
+    return _elementwise_activation(input, kerner_relu);
+}
+
+
+void sigmoid_(Tensor & input)
+{
+    _elementwise_activation_inplace(input, kerner_sigmoid);
+}
+
+
+Tensor sigmoid(const Tensor & input)
+{
+    return _elementwise_activation(input, kerner_sigmoid);
+}
+
+
+void softmax_(Tensor & input, size_t dim)
+{
+    assert(dim < 4);
+    assert(input.device == Device::CUDA);    
+    int grid_size = setup_grid_size(input.numel(), BLOCK_SIZE);
+    CUDATensorWrapper tw(input);
+
+    size_t shape[]{input.shape[0], input.shape[1], input.shape[2], input.shape[3]};
+    shape[dim] = 1;
+    auto buffer = Tensor::zeros(shape[0], shape[1], shape[2], shape[3], Device::CUDA);
+    CUDATensorWrapper buffertw(buffer);
+    kerner_softmax<<<grid_size, BLOCK_SIZE, BLOCK_SIZE * sizeof(float)>>>(tw, dim, tw, buffertw);
+    CHECK(cudaGetLastError());
+}
+
+
+Tensor softmax(const Tensor & input, size_t dim)
+{
+    assert(dim < 4);
+    assert(input.device == Device::CUDA);
+    Tensor output = Tensor::zeros_like(input);
+    int grid_size = setup_grid_size(input.numel(), BLOCK_SIZE);
+    CUDATensorWrapper itw(input);
+    CUDATensorWrapper otw(output);
+
+    size_t shape[]{input.shape[0], input.shape[1], input.shape[2], input.shape[3]};
+    shape[dim] = 1;
+    auto buffer = Tensor::zeros(shape[0], shape[1], shape[2], shape[3], Device::CUDA);
+    CUDATensorWrapper buffertw(buffer);
+    kerner_softmax<<<grid_size, BLOCK_SIZE, BLOCK_SIZE * sizeof(float)>>>(itw, dim, otw, buffertw);
+    CHECK(cudaGetLastError());
+
+    return std::move(output);
+}
+
+
+Tensor ReLU::forward(const Tensor & t)
+{    
+    _context.clear();
+    _context.push_back(t);
+    return relu(t);
+}
+
+
+Tensor ReLU::backward(const Tensor & grad)
+{   
+    assert(!_context.empty());
+    auto input = _context[0];
+    return _elementwise_activation_backward(grad, input, kerner_relu_backward);
+}
+
+
+Tensor Sigmoid::forward(const Tensor & t)
+{
+    _context.clear();
+    _context.push_back(t);
+    return sigmoid(t);
+}
+
+
+Tensor Sigmoid::backward(const Tensor & grad)
+{   
+    assert(!_context.empty());
+    auto input = _context[0];
+    return _elementwise_activation_backward(grad, input, kerner_sigmoid_backward);
+}
+
 
 __global__ void kerner_relu(CUDATensorWrapper input, CUDATensorWrapper output)
 {    
@@ -139,6 +242,7 @@ void _elementwise_activation_inplace(Tensor & input, void kernel_func(CUDATensor
 }
 
 
+
 Tensor _elementwise_activation(const Tensor & input, void kernel_func(CUDATensorWrapper, CUDATensorWrapper))
 {
     assert(input.device == Device::CUDA);
@@ -170,96 +274,5 @@ Tensor _elementwise_activation_backward(
     return std::move(output);
 }
 
-
-void relu_(Tensor & input)
-{
-    _elementwise_activation_inplace(input, kerner_relu);
-}
-
-
-Tensor relu(const Tensor & input)
-{
-    return _elementwise_activation(input, kerner_relu);
-}
-
-
-void sigmoid_(Tensor & input)
-{
-    _elementwise_activation_inplace(input, kerner_sigmoid);
-}
-
-
-Tensor sigmoid(const Tensor & input)
-{
-    return _elementwise_activation(input, kerner_sigmoid);
-}
-
-
-void softmax_(Tensor & input, size_t dim)
-{
-    assert(dim < 4);
-    assert(input.device == Device::CUDA);    
-    int grid_size = setup_grid_size(input.numel(), BLOCK_SIZE);
-    CUDATensorWrapper tw(input);
-
-    size_t shape[]{input.shape[0], input.shape[1], input.shape[2], input.shape[3]};
-    shape[dim] = 1;
-    auto buffer = Tensor::zeros(shape[0], shape[1], shape[2], shape[3], Device::CUDA);
-    CUDATensorWrapper buffertw(buffer);
-    kerner_softmax<<<grid_size, BLOCK_SIZE, BLOCK_SIZE * sizeof(float)>>>(tw, dim, tw, buffertw);
-    CHECK(cudaGetLastError());
-}
-
-
-Tensor softmax(const Tensor & input, size_t dim)
-{
-    assert(dim < 4);
-    assert(input.device == Device::CUDA);
-    Tensor output = Tensor::zeros_like(input);
-    int grid_size = setup_grid_size(input.numel(), BLOCK_SIZE);
-    CUDATensorWrapper itw(input);
-    CUDATensorWrapper otw(output);
-
-    size_t shape[]{input.shape[0], input.shape[1], input.shape[2], input.shape[3]};
-    shape[dim] = 1;
-    auto buffer = Tensor::zeros(shape[0], shape[1], shape[2], shape[3], Device::CUDA);
-    CUDATensorWrapper buffertw(buffer);
-    kerner_softmax<<<grid_size, BLOCK_SIZE, BLOCK_SIZE * sizeof(float)>>>(itw, dim, otw, buffertw);
-    CHECK(cudaGetLastError());
-
-    return std::move(output);
-}
-
-
-Tensor ReLU::forward(const Tensor & t)
-{    
-    _context.clear();
-    _context.push_back(t);
-    return relu(t);
-}
-
-
-Tensor ReLU::backward(const Tensor & grad)
-{   
-    assert(!_context.empty());
-    auto input = _context[0];
-    return _elementwise_activation_backward(grad, input, kerner_relu_backward);
-}
-
-
-Tensor Sigmoid::forward(const Tensor & t)
-{
-    _context.clear();
-    _context.push_back(t);
-    return sigmoid(t);
-}
-
-
-Tensor Sigmoid::backward(const Tensor & grad)
-{   
-    assert(!_context.empty());
-    auto input = _context[0];
-    return _elementwise_activation_backward(grad, input, kerner_sigmoid_backward);
-}
 
 }

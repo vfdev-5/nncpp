@@ -135,7 +135,7 @@ Tensor setup_test_tensor2()
     int n(4), c(3), h(10), w(10);
     Tensor t = Tensor::zeros(n, c, h, w, Device::CUDA);
 
-    float v = - n * c * h * w * 0.5;
+    float v = - 1.0;
     for (size_t i=0; i < t.shape[0]; i++)
     {
         for (size_t j=0; j < t.shape[1]; j++)
@@ -144,8 +144,8 @@ Tensor setup_test_tensor2()
             {
                 for (size_t l=0; l < t.shape[3]; l++)
                 {            
-                    t.at(i, j, k, l) = v * 0.1;
-                    v += 1.0f;
+                    t.at(i, j, k, l) = v;
+                    v += 2.0 / (n * c * h * w);
                 }
             }
         }
